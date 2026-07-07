@@ -1,0 +1,3 @@
+readme: ./sample.md
+steps:
+  - id: first

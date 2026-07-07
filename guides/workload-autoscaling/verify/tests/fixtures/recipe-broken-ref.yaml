@@ -1,0 +1,4 @@
+readme: ./sample.md
+steps:
+  - id: first
+  - id: ghost
