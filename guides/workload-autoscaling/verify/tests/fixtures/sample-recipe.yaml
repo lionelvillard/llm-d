@@ -1,0 +1,12 @@
+readme: ./sample.md
+env:
+  NAMESPACE: demo-ns
+substitutions:
+  - match: 'second\.yaml'
+    replace: 'local-second.yaml'
+steps:
+  - id: first
+  - id: second
+    assert: {kind: hpa, name: demo-hpa, replicas: ">1", within: 120s}
+drive_scale:
+  sim:  { load: {generator: builtin-burst, concurrency: 10, duration: 30s} }
