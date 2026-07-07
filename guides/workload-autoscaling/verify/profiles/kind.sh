@@ -48,6 +48,7 @@ run_env_provision() {
     # Generate a self-signed cert valid for 10 years.
     local _tmpdir
     _tmpdir="$(mktemp -d)"
+    trap 'rm -rf "${_tmpdir}"' RETURN
     openssl req -x509 -newkey rsa:2048 -nodes \
       -keyout "${_tmpdir}/tls.key" \
       -out    "${_tmpdir}/tls.crt" \
@@ -65,7 +66,7 @@ run_env_provision() {
   # 4. Add helm repos (idempotent; errors mean repo already exists).
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
   helm repo add kedacore             https://kedacore.github.io/charts             >/dev/null 2>&1 || true
-  helm repo update >/dev/null
+  helm repo update >/dev/null || true
 
   # 5. Install kube-prometheus-stack with TLS on the Prometheus web endpoint.
   #    Values path from crd-prometheuses.yaml (chart v82, prometheus-operator API):
@@ -93,7 +94,7 @@ run_env_provision() {
     --wait --timeout 5m
 
   # 7. Pre-load the sim image so pods start without a registry pull.
-  docker pull "$SIM_IMAGE"
+  docker image inspect "$SIM_IMAGE" >/dev/null 2>&1 || docker pull "$SIM_IMAGE"
   kind load docker-image "$SIM_IMAGE" --name "$CLUSTER"
 
   run_env_verify_monitoring
