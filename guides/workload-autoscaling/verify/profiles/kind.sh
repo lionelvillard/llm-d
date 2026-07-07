@@ -116,6 +116,7 @@ run_env_provision() {
   #     to add the gate on top of the two standard guide values files.
   local _fc_vals
   _fc_vals="$(mktemp)"
+  trap 'rm -rf "${_tmpdir:-}"; rm -f "${_fc_vals:-}"' RETURN
   cat > "${_fc_vals}" <<'FCEOF'
 router:
   epp:
