@@ -97,6 +97,61 @@ run_env_provision() {
   docker image inspect "$SIM_IMAGE" >/dev/null 2>&1 || docker pull "$SIM_IMAGE"
   kind load docker-image "$SIM_IMAGE" --name "$CLUSTER"
 
+  # --- EPP serving stack (EPP is the metric source for the HPA+EPP path) ---
+  source "${REPO_ROOT:-$(git rev-parse --show-toplevel)}/guides/env.sh"
+
+  # 8. Apply Gateway API Inference Extension CRDs.
+  kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/download/${GAIE_VERSION}/v1-manifests.yaml"
+
+  # 9. Apply the sim model server backends.
+  kubectl apply -k "${REPO_ROOT}/guides/workload-autoscaling/modelserver/sim" -n "$GUIDE_NS"
+
+  # 10. Install the router standalone + EPP with the flowControl feature gate.
+  #     Feature-gate verification: the flowControl gate lives INSIDE the
+  #     EndpointPickerConfig YAML at router.epp.pluginsCustomConfig.<file>,
+  #     NOT as a standalone helm value (confirmed from
+  #     guides/flow-control/router/flow-control.values.yaml, featureGates field
+  #     under apiVersion: llm-d.ai/v1alpha1 / kind: EndpointPickerConfig).
+  #     We write a temporary third values layer that overrides the plugin config
+  #     to add the gate on top of the two standard guide values files.
+  local _fc_vals
+  _fc_vals="$(mktemp)"
+  cat > "${_fc_vals}" <<'FCEOF'
+router:
+  epp:
+    pluginsCustomConfig:
+      optimized-baseline-plugins.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        featureGates:
+        - flowControl
+        plugins:
+        - type: queue-scorer
+        - type: kv-cache-utilization-scorer
+        - type: prefix-cache-scorer
+        - type: no-hit-lru-scorer
+        schedulingProfiles:
+        - name: default
+          plugins:
+          - pluginRef: queue-scorer
+            weight: 2
+          - pluginRef: kv-cache-utilization-scorer
+            weight: 2
+          - pluginRef: prefix-cache-scorer
+            weight: 3
+          - pluginRef: no-hit-lru-scorer
+            weight: 2
+FCEOF
+  helm upgrade --install optimized-baseline "${ROUTER_STANDALONE_CHART}" \
+    -f "${REPO_ROOT}/guides/recipes/router/base.values.yaml" \
+    -f "${REPO_ROOT}/guides/optimized-baseline/router/optimized-baseline.values.yaml" \
+    -f "${_fc_vals}" \
+    -n "$GUIDE_NS" --version "${ROUTER_CHART_VERSION}" --wait --timeout 10m
+  rm -f "${_fc_vals}"
+
+  # 11. Wait for all EPP/router deployments to be available.
+  kubectl wait deployment --all -n "$GUIDE_NS" --for=condition=Available --timeout=300s
+
   run_env_verify_monitoring
 }
 
