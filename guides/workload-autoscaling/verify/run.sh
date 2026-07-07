@@ -19,8 +19,8 @@ case "$cmd" in
     ENV=""; MS=""; RECIPE=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --env) ENV="$2"; shift 2 ;;
-        --modelserver) MS="$2"; shift 2 ;;
+        --env) [[ $# -gt 1 ]] || usage; ENV="$2"; shift 2 ;;
+        --modelserver) [[ $# -gt 1 ]] || usage; MS="$2"; shift 2 ;;
         -*) echo "unknown flag: $1" >&2; usage ;;
         *) RECIPE="$1"; shift ;;
       esac

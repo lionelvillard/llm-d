@@ -16,3 +16,11 @@ test_cli_test_runs_lint_first() {
     && { echo "    should abort on out-of-sync recipe"; return 1; }
   assert_contains "$out" "broken reference" "lint ran before execution"
 }
+test_cli_env_missing_value_exits_2() {
+  bash "$RUN" test --env >/dev/null 2>&1; local rc=$?
+  assert_eq 2 "$rc" "--env with no value exits 2 (usage), not a set -u crash"
+}
+test_cli_modelserver_missing_value_exits_2() {
+  bash "$RUN" test --env kind --modelserver >/dev/null 2>&1; local rc=$?
+  assert_eq 2 "$rc" "--modelserver with no value exits 2 (usage)"
+}
