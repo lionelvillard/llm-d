@@ -109,6 +109,19 @@ The `kind` profile provisions a self-contained stack:
 - Lightweight `kube-prometheus-stack` with **TLS enabled** (WVA requires HTTPS to
   Prometheus), plus **KEDA** and/or the **Prometheus adapter**, at small replica
   counts with **no GPU resource requests**.
+- For the **EPP path**, the full optimized-baseline serving stack: the Gateway
+  API Inference Extension (GAIE) CRDs, the llm-d router standalone + EPP with the
+  `flowControl` feature gate enabled, and `modelserver/sim` backends. The EPP is
+  what emits the scaling metrics (`llm_d_epp_flow_control_queue_size`,
+  `inference_objective_running_requests`), so it must be running for that path.
+
+> **Metric-source note.** The EPP path scales on **EPP-emitted** metrics, not on
+> the model server's `vllm:*` metrics. The simulator's `--fake-metrics` therefore
+> does *not* directly produce the EPP series. On the EPP path a scale event is
+> driven by **light traffic** through the gateway (the EPP emits a real queue
+> metric), on both the `sim` and `vllm` modelservers. On the **WVA path**, WVA
+> consumes the model server's `vllm:*` metrics directly, so `--fake-metrics` is
+> the natural deterministic scale driver there.
 
 The `existing` and `ocp` profiles **only verify** prereqs (Prometheus reachable
 over TLS, KEDA/adapter present) and **fail with an actionable message** if
@@ -155,13 +168,19 @@ substitutions:
   - match: 'thanos-querier.openshift-monitoring.*:9091'
     replace: 'prometheus-operated.llm-d-monitoring:9090'
 steps:
-  - id: create-tls-secret
+  - id: configure-adapter-rules
   - id: apply-hpa
-    assert: {kind: hpa, name: optimized-baseline-nvidia-gpu-vllm-decode, replicas: ">1", within: 180s}
+    assert: {kind: hpa, name: qwen-qwen3-32b-hpa, replicas: ">1", within: 180s}
 drive_scale:
-  sim:  { fake_metrics: '{"waiting-requests":"ramp:0:400:60s"}' }
+  # EPP path: metrics come from the EPP, so scale is driven by traffic on
+  # BOTH modelservers. `sim` backends respond instantly; `vllm` uses real load.
+  sim:  { load: {generator: builtin-burst, concurrency: 50, duration: 120s} }
   vllm: { load: {generator: inference-perf, rps: 20, duration: 120s} }
 ```
+
+> The **WVA path** recipe (`wva.yaml`, a follow-up) instead uses
+> `drive_scale.sim.fake_metrics: '{"waiting-requests":"ramp:0:400:60s"}'`, since
+> WVA reads the model server's `vllm:*` metrics directly.
 
 The recipe is the only artifact touched when a path's structure changes
 (~15 lines per path).
@@ -198,12 +217,18 @@ it as an escalation, do not enable by default.
 4. Apply the shared foundation + the `modelserver/<m>` overlay.
 5. Execute the recipe's tagged steps **in order**, applying substitutions to each
    block verbatim (running the guide's own commands).
-6. `drive_scale` per modelserver:
-   - `sim` — force metrics via `--fake-metrics` generators; may `POST
-     /admin/config` for live updates.
-   - `vllm` — run a **pluggable** load generator. Default is self-contained (no
-     dependency on the external reusable CI workflow, whose `inference-perf` /
-     `guidellm` profiles live outside this repo); those remain optional.
+6. `drive_scale`, per the recipe's strategy for the active modelserver:
+   - **Traffic strategy** (`load:`) — send requests through the gateway so the
+     EPP emits a real queue metric. Used by **both** modelservers on the EPP
+     path. `sim` backends respond instantly (no GPU); `vllm` uses real load. The
+     generator is **pluggable**: a self-contained `builtin-burst` default (a curl
+     loop / hey-style burst pod, no dependency on the external CI workflow) with
+     `inference-perf` / `guidellm` as optional generators.
+   - **Fake-metrics strategy** (`fake_metrics:`) — force the model server's
+     `vllm:*` metrics via `--fake-metrics` generators (`ramp`, `oscillate`,
+     `squarewave`); may `POST /admin/config` for live updates. Used by the **WVA
+     path**, where WVA reads those metrics directly. No traffic, fully
+     deterministic, no GPU.
 7. **Assert resources Ready AND HPA replicas moved** — identical assertion on
    both modelservers.
 8. Exit 0 on success. On failure, print the failing command + `kubectl
@@ -236,18 +261,23 @@ A `gh pr checkout <n>` convenience wrapper is noted but not core.
 
 ## Implementation Scope
 
-**v1:**
+**v1 (HPA + EPP path):**
 
-- Shared Kind foundation + `wva-config/platform/kind/` overlay + `modelserver/sim/` overlay.
+- `modelserver/sim/` overlay + the `kind` EPP serving foundation (GAIE CRDs,
+  router standalone + EPP with `flowControl`, sim backends, kube-prometheus-stack
+  with TLS, Prometheus adapter).
 - `run.sh` with `lint` and `test`, the three environment profiles
-  (`kind`, `existing`, `ocp`), both modelserver strategies (`sim` via
-  `--fake-metrics`; `vllm` via a pluggable load generator), and the assertion.
-- The **HPA + EPP** recipe and its README tags.
-- HTML-comment step tags in `README.hpa-epp.md`.
+  (`kind`, `existing`, `ocp`), the **traffic** drive-scale strategy with the
+  `builtin-burst` default generator (both modelservers), and the assertion.
+- The **HPA + EPP** recipe and HTML-comment step tags in `README.hpa-epp.md`.
 
 **Follow-ups:**
 
-- `wva.yaml` and `replica-rebalancing.yaml` recipes + their README tags.
+- `wva.yaml` recipe (uses the `fake_metrics` drive-scale strategy) +
+  `wva-config/platform/kind/` overlay + README tags.
+- `replica-rebalancing.yaml` recipe + README tags.
+- The `vllm` real-load path on GPU clusters (`inference-perf` / `guidellm`
+  generators wired into the traffic strategy).
 - The two AI helpers (PR adaptation, failure triage).
 - Optional per-block content hashing in the sync lint.
 
