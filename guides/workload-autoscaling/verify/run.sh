@@ -6,6 +6,7 @@ source "$HERE/lib/recipe.sh"
 source "$HERE/lib/lint.sh"
 source "$HERE/lib/assert.sh"
 source "$HERE/lib/drive_scale.sh" 2>/dev/null || true   # added in Task 11
+source "$HERE/lib/exec.sh"
 
 usage() { echo "usage: run.sh lint <recipe> | run.sh test --env <kind|existing|ocp> --modelserver <sim|vllm> <recipe>" >&2; exit 2; }
 
