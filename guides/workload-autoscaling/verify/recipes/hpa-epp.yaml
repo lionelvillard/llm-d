@@ -7,12 +7,16 @@ substitutions:
   # Local sim deployment is `optimized-baseline-sim-decode` in the guide ns.
   - match: '-n default'
     replace: '-n llm-d-optimized-baseline'
+  - match: 'namespace: default'
+    replace: 'namespace: llm-d-optimized-baseline'
   - match: 'qwen-qwen3-32b-hpa'
     replace: 'optimized-baseline-sim-decode-hpa'
   - match: 'name: qwen-qwen3-32b'
     replace: 'name: optimized-baseline-sim-decode'
 steps:
+  - id: adapter-rules-values      # materialized to epp-adapter-values.yaml
   - id: configure-adapter-rules
+  - id: hpa-manifest              # materialized to hpa.yaml
   - id: apply-hpa
     assert: {kind: hpa, name: optimized-baseline-sim-decode-hpa, replicas: ">1", within: 240s}
 drive_scale:

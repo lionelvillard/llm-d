@@ -52,7 +52,7 @@ Follow the [flow control configuration guide](https://gateway-api-inference-exte
 
 Create a values file `epp-adapter-values.yaml` with the following rules:
 
-<!-- local:step id=adapter-rules-values ignore="values file authored inline; applied by next step" -->
+<!-- local:step id=adapter-rules-values file="epp-adapter-values.yaml" -->
 ```yaml
 rules:
   external:
@@ -105,7 +105,7 @@ re-check the `metricsQuery` label values against your live Prometheus data.
 
 Below is a sample HPA configuration `hpa.yaml` that uses the dual-metric setup to scale your model server based on both the queue size and current request load.
 
-<!-- local:step id=hpa-manifest ignore="manifest authored inline; applied by next step" -->
+<!-- local:step id=hpa-manifest file="hpa.yaml" -->
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

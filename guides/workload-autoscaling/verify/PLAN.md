@@ -255,19 +255,17 @@ tags_block() {
 }
 ```
 
-> Note: uses GNU awk `match(...,arr)`. macOS ships BSD awk. Add a guard: if `awk --version 2>/dev/null | grep -qi gnu` is false, the script must `command -v gawk` and use it. Include this check at the top of `tags.sh`:
-> ```bash
-> if awk --version 2>/dev/null | grep -qi 'gnu awk'; then AWK=awk
-> elif command -v gawk >/dev/null 2>&1; then AWK=gawk
-> else echo "tags.sh requires GNU awk (gawk); install via 'brew install gawk'." >&2; return 1 2>/dev/null || exit 1
-> fi
-> ```
-> and call `"$AWK"` instead of `awk` in `tags_block`.
+> **Portability (RESOLVED — no gawk dependency):** the parser must run on stock
+> macOS/BSD awk, so `tags_block` uses only POSIX 2-arg `match(str, re)` +
+> `RSTART`/`RLENGTH`/`substr()` — NOT GNU awk's 3-arg `match(str, re, arr)`.
+> Extract the id with `match(line, /id=[A-Za-z0-9_-]+/)` then
+> `substr(line, RSTART+3, RLENGTH-3)`. Call plain `awk`; do not add a gawk guard
+> or dependency. (This overrides an earlier draft that used gawk.)
 
 - [ ] **Step 5: Run to verify it passes**
 
 Run: `bash guides/workload-autoscaling/verify/tests/run_tests.sh`
-Expected: all `test_tags_*` PASS. (If FAIL on macOS, `brew install gawk` and re-run — the guard message will say so.)
+Expected: all `test_tags_*` PASS on stock macOS/BSD awk (`/usr/bin/awk`), no extra install needed.
 
 - [ ] **Step 6: Commit**
 
@@ -623,13 +621,21 @@ git commit -m "feat: add HPA replica-scaling assertion with polling"
 
 ---
 
-## Task 6: Sim image component + overlay
+## Task 6: Sim modelserver overlay
 
 **Files:**
-- Create: `guides/recipes/modelserver/components/images/sim/kustomization.yaml`
 - Create: `guides/workload-autoscaling/modelserver/sim/kustomization.yaml`
 - Create: `guides/workload-autoscaling/modelserver/sim/patch-sim.yaml`
 - Create: `guides/workload-autoscaling/verify/tests/sim_overlay_test.sh`
+
+> **Convention note (resolved):** the existing modelserver overlays reference a
+> shared image `Component` under `guides/recipes/modelserver/components/images/`.
+> A separate component exists only to *share* an image transform across guides;
+> the sim image is used only here, and the Global Constraint requires all new
+> artifacts to live under `guides/workload-autoscaling/`. So set the `images:`
+> transform **directly** in the sim overlay's `kustomization.yaml` (kustomize
+> supports `images:` inline, same effect as a component) — do **not** create a
+> file under `guides/recipes/`.
 
 **Interfaces:**
 - Consumes: the shared base `guides/recipes/modelserver/base/single-host/default` and the `REPLACE_MODEL_SERVER_IMAGE` image placeholder (confirmed convention).
@@ -661,20 +667,7 @@ test_sim_overlay_has_no_gpu_request() {
 Run: `bash guides/workload-autoscaling/verify/tests/run_tests.sh`
 Expected: FAIL — overlay dir does not exist, `kustomize` errors.
 
-- [ ] **Step 3: Write the image component**
-
-Create `guides/recipes/modelserver/components/images/sim/kustomization.yaml`:
-
-```yaml
-apiVersion: kustomize.config.k8s.io/v1alpha1
-kind: Component
-images:
-  - name: REPLACE_MODEL_SERVER_IMAGE
-    newName: ghcr.io/llm-d/llm-d-inference-sim
-    newTag: v0.9.0
-```
-
-- [ ] **Step 4: Write the overlay kustomization** (mirrors `optimized-baseline/modelserver/cpu/vllm/kustomization.yaml`)
+- [ ] **Step 3: Write the overlay kustomization** (mirrors `optimized-baseline/modelserver/cpu/vllm/kustomization.yaml`, but with the `images:` transform inlined instead of referencing a shared component — see the Convention note above)
 
 Create `guides/workload-autoscaling/modelserver/sim/kustomization.yaml`:
 
@@ -686,8 +679,10 @@ resources:
 
 namePrefix: optimized-baseline-sim-
 
-components:
-  - ../../../recipes/modelserver/components/images/sim
+images:
+  - name: REPLACE_MODEL_SERVER_IMAGE
+    newName: ghcr.io/llm-d/llm-d-inference-sim
+    newTag: v0.9.0
 
 labels:
   - pairs:
@@ -700,7 +695,7 @@ patches:
   - path: patch-sim.yaml
 ```
 
-- [ ] **Step 5: Write the deployment patch** (sim command + probes + tiny resources)
+- [ ] **Step 4: Write the deployment patch** (sim command + probes + tiny resources)
 
 Create `guides/workload-autoscaling/modelserver/sim/patch-sim.yaml`:
 
@@ -1344,7 +1339,7 @@ Expected: cluster provisions, steps run, load drives the EPP queue metric up, an
 
 - [ ] **Step 6: Write the usage README**
 
-Create `guides/workload-autoscaling/verify/README.md` documenting: prerequisites (docker, kind, kubectl, helm, yq, gawk), the two subcommands, the env×modelserver matrix, and the "test a PR" workflow (`git checkout <branch>` then `run.sh test ...`).
+Create `guides/workload-autoscaling/verify/README.md` documenting: prerequisites (docker, kind, kubectl, helm, yq — no gawk; stock awk works), the two subcommands, the env×modelserver matrix, and the "test a PR" workflow (`git checkout <branch>` then `run.sh test ...`).
 
 - [ ] **Step 7: Write the maintainer "when the guide changes" doc**
 

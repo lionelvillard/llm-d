@@ -1,0 +1,5 @@
+readme: ./sample.md
+env:
+  NAMESPACE: demo-ns
+steps:
+  - id: amanifest

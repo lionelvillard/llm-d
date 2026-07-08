@@ -5,6 +5,7 @@ substitutions:
   - match: 'second\.yaml'
     replace: 'local-second.yaml'
 steps:
+  - id: amanifest
   - id: first
   - id: second
     assert: {kind: hpa, name: demo-hpa, replicas: ">1", within: 120s}

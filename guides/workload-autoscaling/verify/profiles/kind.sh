@@ -73,23 +73,28 @@ run_env_provision() {
   #      prometheus.prometheusSpec.web.tlsConfig.cert.secret.{name,key}
   #      prometheus.prometheusSpec.web.tlsConfig.keySecret.{name,key}
   #    Secret "prometheus-web-tls" created above (keys: tls.crt / tls.key).
+  #    The admission webhooks require a cert-gen pre-install hook Job that is
+  #    flaky on fresh kind clusters (times out with "admission-create ... NotFound").
+  #    They are unnecessary for a local smoke, so disable them (and the operator
+  #    TLS that depends on the webhook-generated cert).
   helm upgrade --install kube-prometheus-stack \
     prometheus-community/kube-prometheus-stack \
     --namespace "$MON_NS" \
+    --set "prometheusOperator.admissionWebhooks.enabled=false" \
+    --set "prometheusOperator.tls.enabled=false" \
     --set "prometheus.prometheusSpec.web.tlsConfig.cert.secret.name=prometheus-web-tls" \
     --set "prometheus.prometheusSpec.web.tlsConfig.cert.secret.key=tls.crt" \
     --set "prometheus.prometheusSpec.web.tlsConfig.keySecret.name=prometheus-web-tls" \
     --set "prometheus.prometheusSpec.web.tlsConfig.keySecret.key=tls.key" \
     --wait --timeout 10m
 
-  # 6. Install KEDA and prometheus-adapter.
+  # 6. Install KEDA — the external-metrics provider for the autoscaling guides.
+  #    NOTE: do NOT also install prometheus-adapter. Both register the
+  #    external.metrics.k8s.io APIService and only one can own it; KEDA is the
+  #    recommended provider (prometheus-adapter is deprecated). KEDA's prometheus
+  #    scaler queries Prometheus directly, so no separate adapter is needed.
   helm upgrade --install keda \
     kedacore/keda \
-    --namespace "$MON_NS" \
-    --wait --timeout 5m
-
-  helm upgrade --install prometheus-adapter \
-    prometheus-community/prometheus-adapter \
     --namespace "$MON_NS" \
     --wait --timeout 5m
 

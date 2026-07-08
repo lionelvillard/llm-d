@@ -21,3 +21,20 @@ test_assert_field_parses_replicas_with_gt() {
   assert_eq "demo-hpa" "$(_assert_field "$spec" name)" "name parsed"
   assert_eq "120s" "$(_assert_field "$spec" within)" "within parsed"
 }
+
+test_render_step_file_block_returns_yaml_body() {
+  # Verify render_step_script on a file= yaml block returns the block body (pure, no cluster).
+  local out; out="$(render_step_script "$RX" amanifest)"
+  assert_contains "$out" "kind: Thing" "yaml body returned by render_step_script"
+  assert_contains "$out" "name: demo" "yaml body line 2 returned"
+}
+
+test_tags_file_on_amanifest_returns_thing_yaml() {
+  local readme; readme="$(recipe_readme "$RX")"
+  assert_eq "thing.yaml" "$(tags_file "$readme" amanifest)" "tags_file returns file= value for amanifest"
+}
+
+test_tags_file_on_plain_step_returns_empty() {
+  local readme; readme="$(recipe_readme "$RX")"
+  assert_eq "" "$(tags_file "$readme" first)" "tags_file returns empty for plain step"
+}

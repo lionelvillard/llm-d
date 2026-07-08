@@ -4,7 +4,7 @@ source "$DIR/../lib/recipe.sh"
 RX="$DIR/fixtures/sample-recipe.yaml"
 
 test_recipe_step_ids() {
-  assert_eq $'first\nsecond' "$(recipe_step_ids "$RX")" "step ids in order"
+  assert_eq $'amanifest\nfirst\nsecond' "$(recipe_step_ids "$RX")" "step ids in order"
 }
 test_recipe_readme_resolves_abs() {
   local out; out="$(recipe_readme "$RX")"

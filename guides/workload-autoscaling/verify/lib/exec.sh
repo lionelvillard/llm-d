@@ -23,19 +23,37 @@ _assert_field() {
 }
 
 # runner_exec_steps <recipe> <modelserver>
-# For each non-ignored recipe step, fetch the tagged block, apply substitutions,
-# and run it via bash with the recipe's env exported. Aborts on first non-zero exit.
+# For each recipe step, fetch the tagged block, apply substitutions, and either
+# materialize it to disk (if its tag has file=) or run it via bash.
+# Creates a per-run temp workdir and cd's into it so relative file references resolve.
+# Aborts on first non-zero exit.
 runner_exec_steps() {
-  local recipe="$1" modelserver="$2" id script
+  local recipe="$1" modelserver="$2" id script file readme
+  readme="$(recipe_readme "$recipe")"
   # export recipe env
   while IFS='=' read -r k v; do [[ -n "$k" ]] && export "$k=$v"; done \
     < <(yq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' "$recipe")
+
+  local _workdir _oldpwd
+  _workdir="$(mktemp -d)"
+  trap 'rm -rf "${_workdir:-}"' RETURN
+  _oldpwd="$PWD"
+  cd "$_workdir" || return 1
+
   while read -r id; do
     [[ -z "$id" ]] && continue
-    echo "==> step: $id"
+    file="$(tags_file "$readme" "$id")"
     script="$(render_step_script "$recipe" "$id")"
-    echo "$script" | bash
+    if [[ -n "$file" ]]; then
+      echo "==> materialize: $id -> $file"
+      printf '%s\n' "$script" > "$file"
+    else
+      echo "==> step: $id"
+      printf '%s\n' "$script" | bash
+    fi
   done < <(recipe_step_ids "$recipe")
+
+  cd "$_oldpwd" || true
 }
 
 # runner_drive_and_assert <recipe> <modelserver>

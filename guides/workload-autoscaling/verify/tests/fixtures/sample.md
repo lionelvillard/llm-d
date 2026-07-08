@@ -16,3 +16,9 @@ kubectl apply -f second.yaml
 ```bash
 kubectl get pods
 ```
+
+<!-- local:step id=amanifest file="thing.yaml" -->
+```yaml
+kind: Thing
+name: demo
+```
