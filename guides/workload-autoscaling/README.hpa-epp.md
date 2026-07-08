@@ -52,6 +52,7 @@ Follow the [flow control configuration guide](https://gateway-api-inference-exte
 
 Create a values file `epp-adapter-values.yaml` with the following rules:
 
+<!-- local:step id=adapter-rules-values ignore="values file authored inline; applied by next step" -->
 ```yaml
 rules:
   external:
@@ -80,6 +81,7 @@ rules:
 
 Apply the rules by upgrading the adapter:
 
+<!-- local:step id=configure-adapter-rules -->
 ```bash
 helm upgrade prometheus-adapter prometheus-community/prometheus-adapter \
   --namespace ${MONITORING_NAMESPACE} \
@@ -89,6 +91,7 @@ helm upgrade prometheus-adapter prometheus-community/prometheus-adapter \
 
 Verify the metrics are visible to the Kubernetes API:
 
+<!-- local:step id=verify-external-metric ignore="informational output" -->
 ```bash
 kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/namespaces/default/epp_queue_size"
 kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/namespaces/default/epp_running_requests"
@@ -102,6 +105,7 @@ re-check the `metricsQuery` label values against your live Prometheus data.
 
 Below is a sample HPA configuration `hpa.yaml` that uses the dual-metric setup to scale your model server based on both the queue size and current request load.
 
+<!-- local:step id=hpa-manifest ignore="manifest authored inline; applied by next step" -->
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -155,6 +159,7 @@ spec:
 
 Apply the manifest and confirm the HPA is reading metrics:
 
+<!-- local:step id=apply-hpa -->
 ```bash
 kubectl apply -f hpa.yaml
 kubectl get hpa qwen-qwen3-32b-hpa -n default

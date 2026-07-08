@@ -1,0 +1,20 @@
+readme: ../../README.hpa-epp.md
+env:
+  NAMESPACE: llm-d-optimized-baseline
+  MONITORING_NAMESPACE: llm-d-monitoring
+substitutions:
+  # The guide's sample uses namespace `default` and deployment name `qwen-qwen3-32b`.
+  # Local sim deployment is `optimized-baseline-sim-decode` in the guide ns.
+  - match: '-n default'
+    replace: '-n llm-d-optimized-baseline'
+  - match: 'qwen-qwen3-32b-hpa'
+    replace: 'optimized-baseline-sim-decode-hpa'
+  - match: 'name: qwen-qwen3-32b'
+    replace: 'name: optimized-baseline-sim-decode'
+steps:
+  - id: configure-adapter-rules
+  - id: apply-hpa
+    assert: {kind: hpa, name: optimized-baseline-sim-decode-hpa, replicas: ">1", within: 240s}
+drive_scale:
+  sim:  { load: {generator: builtin-burst, concurrency: 50, duration: 180s} }
+  vllm: { load: {generator: inference-perf, rps: 20, duration: 120s} }

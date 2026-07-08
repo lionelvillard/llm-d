@@ -24,6 +24,7 @@ drive_scale_load() {
     # Standalone router: use the router service instead of a Gateway object.
     host="$("$KUBECTL" get svc -n "$ns" -o jsonpath='{.items[?(@.metadata.labels.llm-d\.ai/guide=="optimized-baseline")].metadata.name}' | awk '{print $1}')"
   fi
+  [[ -z "$host" ]] && { echo "ERROR: drive_scale_load: no gateway/router host discovered in namespace $ns" >&2; return 1; }
   echo "  → driving load ($concurrency concurrent for $duration) at $host"
   "$KUBECTL" run llmd-load-$$ -n "$ns" --restart=Never --image=curlimages/curl --command -- \
     sh -c "end=\$(( \$(date +%s) + ${duration%s} )); \
